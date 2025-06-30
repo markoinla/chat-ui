@@ -203,37 +203,119 @@ Use the provided `cloud_run_deployment.py` script for containerized deployment.
 
 ## 🔌 Connection & Usage
 
-### Agent Engine Endpoint
+### Production Endpoints
 
-After deployment, your agent will be available at:
+#### **Agent Engine (Primary Production)**
 ```
-https://{location}-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/agents/{agent-id}
+Base URL: https://us-central1-aiplatform.googleapis.com/v1/projects/zenlayer-zengpt/locations/us-central1/agents/zengpt-central-agent
+```
+
+**Invoke Endpoint:**
+```
+POST https://us-central1-aiplatform.googleapis.com/v1/projects/zenlayer-zengpt/locations/us-central1/agents/zengpt-central-agent:invoke
+```
+
+**Streaming Endpoint:**
+```
+POST https://us-central1-aiplatform.googleapis.com/v1/projects/zenlayer-zengpt/locations/us-central1/agents/zengpt-central-agent:streamingInvoke
+```
+
+#### **Cloud Run (Alternative Production)**
+```
+Base URL: https://zengpt-central-agent-us-central1.run.app
+```
+
+**Invoke Endpoint:**
+```
+POST https://zengpt-central-agent-us-central1.run.app/invoke
+```
+
+**Streaming Endpoint:**
+```
+POST https://zengpt-central-agent-us-central1.run.app/stream
+```
+
+**Web UI (Development/Testing):**
+```
+GET https://zengpt-central-agent-us-central1.run.app/
+```
+
+### Authentication
+
+#### **Google Cloud Authentication (Agent Engine)**
+```bash
+# Get access token
+gcloud auth application-default print-access-token
+
+# Or use service account key
+export GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account-key.json
+```
+
+#### **API Key Authentication (Cloud Run)**
+```bash
+# Set in request headers
+X-API-Key: your-api-key-here
 ```
 
 ### API Usage
+
+#### **Agent Engine Production Requests**
+
+**Basic Request:**
+```python
+import requests
+import subprocess
+
+# Get access token
+access_token = subprocess.check_output([
+    "gcloud", "auth", "application-default", "print-access-token"
+]).decode().strip()
+
+response = requests.post(
+    "https://us-central1-aiplatform.googleapis.com/v1/projects/zenlayer-zengpt/locations/us-central1/agents/zengpt-central-agent:invoke",
+    json={
+        "user_content": "Create a document about AI trends",
+        "session_id": "user-session-123"
+    },
+    headers={
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+)
+```
+
+#### **Cloud Run Production Requests**
 
 **Basic Request:**
 ```python
 import requests
 
 response = requests.post(
-    "https://your-agent-endpoint/invoke",
+    "https://zengpt-central-agent-us-central1.run.app/invoke",
     json={
         "user_content": "Create a document about AI trends",
         "session_id": "user-session-123"
     },
     headers={
-        "Authorization": "Bearer your-access-token",
+        "X-API-Key": "your-api-key-here",
         "Content-Type": "application/json"
     }
 )
 ```
 
-**Dynamic Model Selection:**
+#### **Dynamic Model Selection**
+
+**Agent Engine - Via Request State:**
 ```python
-# Via request state
+import requests
+import subprocess
+
+access_token = subprocess.check_output([
+    "gcloud", "auth", "application-default", "print-access-token"
+]).decode().strip()
+
 response = requests.post(
-    "https://your-agent-endpoint/invoke",
+    "https://us-central1-aiplatform.googleapis.com/v1/projects/zenlayer-zengpt/locations/us-central1/agents/zengpt-central-agent:invoke",
     json={
         "user_content": "Research quantum computing",
         "session_id": "user-session-123",
@@ -241,12 +323,21 @@ response = requests.post(
             "model": "gpt-4o",
             "temperature": 0.3
         }
+    },
+    headers={
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
     }
 )
+```
 
-# Via user content
+**Cloud Run - Via User Content:**
+```python
+import requests
+import json
+
 response = requests.post(
-    "https://your-agent-endpoint/invoke",
+    "https://zengpt-central-agent-us-central1.run.app/invoke",
     json={
         "user_content": json.dumps({
             "query": "Analyze market trends",
@@ -254,26 +345,284 @@ response = requests.post(
             "temperature": 0.2
         }),
         "session_id": "user-session-123"
+    },
+    headers={
+        "X-API-Key": "your-api-key-here",
+        "Content-Type": "application/json"
     }
 )
 ```
 
 ### Streaming Responses
 
-**Server-Sent Events:**
+#### **Agent Engine Streaming:**
 ```python
 import requests
+import subprocess
+
+access_token = subprocess.check_output([
+    "gcloud", "auth", "application-default", "print-access-token"
+]).decode().strip()
 
 response = requests.post(
-    "https://your-agent-endpoint/stream",
-    json={"user_content": "Research AI developments"},
-    headers={"Accept": "text/event-stream"},
+    "https://us-central1-aiplatform.googleapis.com/v1/projects/zenlayer-zengpt/locations/us-central1/agents/zengpt-central-agent:streamingInvoke",
+    json={
+        "user_content": "Research AI developments",
+        "session_id": "user-session-123"
+    },
+    headers={
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "text/event-stream",
+        "Content-Type": "application/json"
+    },
     stream=True
 )
 
 for line in response.iter_lines():
     if line:
         print(line.decode('utf-8'))
+```
+
+#### **Cloud Run Streaming:**
+```python
+import requests
+
+response = requests.post(
+    "https://zengpt-central-agent-us-central1.run.app/stream",
+    json={
+        "user_content": "Research AI developments",
+        "session_id": "user-session-123"
+    },
+    headers={
+        "X-API-Key": "your-api-key-here",
+        "Accept": "text/event-stream",
+        "Content-Type": "application/json"
+    },
+    stream=True
+)
+
+for line in response.iter_lines():
+    if line:
+        print(line.decode('utf-8'))
+```
+
+### Request/Response Formats
+
+#### **Standard Request Format**
+```json
+{
+    "user_content": "Your message or task description",
+    "session_id": "unique-session-identifier",
+    "state": {
+        "model": "gpt-4o",
+        "temperature": 0.3,
+        "max_tokens": 8192
+    },
+    "metadata": {
+        "user_id": "user-123",
+        "context": "additional context"
+    }
+}
+```
+
+#### **Response Format**
+```json
+{
+    "response": "Agent's response text",
+    "session_id": "unique-session-identifier",
+    "tool_calls": [
+        {
+            "tool": "search_agent",
+            "input": "search query",
+            "output": "search results"
+        }
+    ],
+    "metadata": {
+        "model_used": "gpt-4o",
+        "tokens_used": 1234,
+        "processing_time": 2.5
+    }
+}
+```
+
+#### **Error Response Format**
+```json
+{
+    "error": {
+        "code": "INVALID_REQUEST",
+        "message": "Invalid model specified",
+        "details": "Model 'invalid-model' is not supported"
+    },
+    "session_id": "unique-session-identifier"
+}
+```
+
+### Client Libraries & SDKs
+
+#### **Python Client Example**
+```python
+import requests
+import subprocess
+from typing import Dict, Any, Optional
+
+class ZenGPTClient:
+    def __init__(self, use_cloud_run: bool = False, api_key: Optional[str] = None):
+        if use_cloud_run:
+            self.base_url = "https://zengpt-central-agent-us-central1.run.app"
+            self.headers = {
+                "X-API-Key": api_key or "your-api-key-here",
+                "Content-Type": "application/json"
+            }
+        else:
+            self.base_url = "https://us-central1-aiplatform.googleapis.com/v1/projects/zenlayer-zengpt/locations/us-central1/agents/zengpt-central-agent"
+            access_token = subprocess.check_output([
+                "gcloud", "auth", "application-default", "print-access-token"
+            ]).decode().strip()
+            self.headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+    
+    def invoke(self, message: str, session_id: str, model: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+        """Send a message to the agent and get a response."""
+        payload = {
+            "user_content": message,
+            "session_id": session_id
+        }
+        
+        if model:
+            payload["state"] = {"model": model, **kwargs}
+        
+        endpoint = f"{self.base_url}:invoke" if "aiplatform" in self.base_url else f"{self.base_url}/invoke"
+        response = requests.post(endpoint, json=payload, headers=self.headers)
+        response.raise_for_status()
+        return response.json()
+    
+    def stream(self, message: str, session_id: str, model: Optional[str] = None):
+        """Stream responses from the agent."""
+        payload = {
+            "user_content": message,
+            "session_id": session_id
+        }
+        
+        if model:
+            payload["state"] = {"model": model}
+        
+        headers = {**self.headers, "Accept": "text/event-stream"}
+        endpoint = f"{self.base_url}:streamingInvoke" if "aiplatform" in self.base_url else f"{self.base_url}/stream"
+        
+        response = requests.post(endpoint, json=payload, headers=headers, stream=True)
+        response.raise_for_status()
+        
+        for line in response.iter_lines():
+            if line:
+                yield line.decode('utf-8')
+
+# Usage examples
+client = ZenGPTClient()  # Agent Engine
+# client = ZenGPTClient(use_cloud_run=True, api_key="your-key")  # Cloud Run
+
+# Standard request
+response = client.invoke("Create a document about AI trends", "session-123")
+print(response)
+
+# With specific model
+response = client.invoke("Research quantum computing", "session-123", model="gpt-4o", temperature=0.3)
+
+# Streaming
+for chunk in client.stream("Analyze market trends", "session-123"):
+    print(chunk)
+```
+
+#### **JavaScript/Node.js Client Example**
+```javascript
+const axios = require('axios');
+const { execSync } = require('child_process');
+
+class ZenGPTClient {
+    constructor(useCloudRun = false, apiKey = null) {
+        if (useCloudRun) {
+            this.baseUrl = 'https://zengpt-central-agent-us-central1.run.app';
+            this.headers = {
+                'X-API-Key': apiKey || 'your-api-key-here',
+                'Content-Type': 'application/json'
+            };
+        } else {
+            this.baseUrl = 'https://us-central1-aiplatform.googleapis.com/v1/projects/zenlayer-zengpt/locations/us-central1/agents/zengpt-central-agent';
+            const accessToken = execSync('gcloud auth application-default print-access-token', { encoding: 'utf8' }).trim();
+            this.headers = {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            };
+        }
+    }
+
+    async invoke(message, sessionId, model = null, options = {}) {
+        const payload = {
+            user_content: message,
+            session_id: sessionId
+        };
+
+        if (model) {
+            payload.state = { model, ...options };
+        }
+
+        const endpoint = this.baseUrl.includes('aiplatform') 
+            ? `${this.baseUrl}:invoke` 
+            : `${this.baseUrl}/invoke`;
+
+        const response = await axios.post(endpoint, payload, { headers: this.headers });
+        return response.data;
+    }
+}
+
+// Usage
+const client = new ZenGPTClient();
+client.invoke('Create a document about AI trends', 'session-123')
+    .then(response => console.log(response))
+    .catch(error => console.error(error));
+```
+
+### Rate Limits & Quotas
+
+#### **Agent Engine Limits**
+- **Requests per minute**: 60 (per project)
+- **Concurrent requests**: 10
+- **Max request size**: 32MB
+- **Max response size**: 32MB
+- **Session timeout**: 1 hour
+
+#### **Cloud Run Limits**
+- **Requests per minute**: 1000 (configurable)
+- **Concurrent requests**: 100 (configurable)
+- **Max request size**: 32MB
+- **Request timeout**: 60 seconds
+- **Memory limit**: 8GB (configurable)
+
+### Health Check & Status
+
+#### **Health Check Endpoints**
+```bash
+# Agent Engine health (via Cloud Console or API)
+GET https://us-central1-aiplatform.googleapis.com/v1/projects/zenlayer-zengpt/locations/us-central1/agents/zengpt-central-agent
+
+# Cloud Run health
+GET https://zengpt-central-agent-us-central1.run.app/health
+```
+
+#### **Status Response**
+```json
+{
+    "status": "healthy",
+    "version": "1.0.0",
+    "model": "gemini/gemini-2.5-flash",
+    "features": {
+        "streaming": true,
+        "dynamic_models": true,
+        "memory_service": true
+    },
+    "uptime": "2h 30m 15s"
+}
 ```
 
 ### Available Tools
